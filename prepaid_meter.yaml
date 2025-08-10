@@ -1,0 +1,151 @@
+# Prepaid Electricity Meter Monitoring System Package
+# Tracks electricity usage in kWh and manages a prepaid balance
+
+input_number:
+  prepaid_balance:
+    name: Prepaid Meter Balance
+    min: 0
+    max: 10000
+    step: 0.1
+    unit_of_measurement: "kWh"
+    mode: box
+  prepaid_grid_import_reference:
+    name: Grid Import Reference
+    min: 0
+    max: 100000
+    step: 0.1
+    unit_of_measurement: "kWh"
+    mode: slider
+  # NEW: Input for setting the low balance alert threshold from the dashboard.
+  prepaid_low_balance_threshold:
+    name: Low Balance Notification Threshold
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "kWh"
+    mode: box
+
+# NEW: Helper to store the timestamp of the last recharge.
+input_datetime:
+  prepaid_last_recharge:
+    name: Last Recharge Time
+    has_date: true
+    has_time: true
+
+sensor:
+  - platform: template
+    sensors:
+      prepaid_balance_current:
+        friendly_name: "Current Prepaid Balance"
+        unit_of_measurement: "kWh"
+        value_template: >-
+          {% set prepaid = states('input_number.prepaid_balance')|float(0) %}
+          {% set ref_import = states('input_number.prepaid_grid_import_reference')|float(0) %}
+          {% set current_import = states('sensor.inverter_total_grid_import_kwh')|float(0) %}
+          {% set usage = [current_import - ref_import, 0]|max %}
+          {{ ([prepaid - usage, 0]|max)|round(1) }}
+      prepaid_energy_used_since_recharge:
+        friendly_name: "Energy Used Since Recharge"
+        unit_of_measurement: "kWh"
+        value_template: >-
+          {% set current = states('sensor.inverter_total_grid_import_kwh')|float(0) %}
+          {% set ref = states('input_number.prepaid_grid_import_reference')|float(0) %}
+          {% set used = (current - ref) %}
+          {{ (used if used > 0 else 0) | round(3) }}
+      # NEW: A read-only sensor to safely display the grid reference on the dashboard.
+      prepaid_grid_import_reference_display:
+        friendly_name: "Grid Import Reference at Recharge"
+        unit_of_measurement: "kWh"
+        value_template: "{{ states('input_number.prepaid_grid_import_reference') | float(0) | round(1) }}"
+
+automation:
+  - alias: "Prepaid Meter: Record Recharge and Timestamp"
+    description: "When the balance is changed, record the grid import value and the current time."
+    trigger:
+      - platform: state
+        entity_id: input_number.prepaid_balance
+    condition:
+      - condition: template
+        value_template: "{{ states('sensor.inverter_total_grid_import_kwh')|is_number }}"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.prepaid_grid_import_reference
+        data:
+          value: "{{ states('sensor.inverter_total_grid_import_kwh')|float(0) }}"
+      # NEW: Set the timestamp to now.
+      - service: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.prepaid_last_recharge
+        data:
+          datetime: "{{ now().isoformat() }}"
+
+  - alias: "Prepaid Meter: Set Grid Import Reference on Startup"
+    description: "Sets reference to current grid import on startup if it’s still 0."
+    trigger:
+      - platform: homeassistant
+        event: start
+    condition:
+      - condition: template
+        value_template: "{{ states('input_number.prepaid_grid_import_reference')|float(0) == 0 and states('sensor.inverter_total_grid_import_kwh')|is_number }}"
+    action:
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.prepaid_grid_import_reference
+        data:
+          value: "{{ states('sensor.inverter_total_grid_import_kwh')|float(0) }}"
+
+  # NEW: Automation to send low balance alerts.
+  - alias: "Prepaid Meter: Low Balance Notification"
+    description: "Sends a notification when the balance drops below the user-defined threshold."
+    trigger:
+      - platform: state
+        entity_id: sensor.prepaid_balance_current
+    condition:
+      # Fire only when the balance crosses the threshold from a higher/equal value to a lower one.
+      - condition: template
+        value_template: >-
+          {% set threshold = states('input_number.prepaid_low_balance_threshold') | float(0) %}
+          {{ trigger.to_state.state | float(0) < threshold and
+             trigger.from_state.state | float(0) >= threshold }}
+    action:
+      # Action 1: Send a mobile app notification.
+      # IMPORTANT: Replace 'notify.notify' with your specific notification service.
+      - service: notify.notify
+        data:
+          title: "Low Prepaid Balance"
+          message: "Prepaid balance is low at {{ states('sensor.prepaid_balance_current') }} kWh. The threshold is set to {{ states('input_number.prepaid_low_balance_threshold') }} kWh."
+      # Action 2: Create a persistent notification on the dashboard.
+      - service: persistent_notification.create
+        data:
+          title: "Low Prepaid Balance"
+          message: "Your prepaid electricity balance is **{{ states('sensor.prepaid_balance_current') }} kWh**. Please recharge soon."
+          notification_id: "low_prepaid_balance_alert"
+
+  # NEW: Automation to automatically clear the dashboard alert after a recharge.
+  - alias: "Prepaid Meter: Clear Low Balance Notification"
+    description: "Dismisses the persistent low balance notification when balance is restored."
+    trigger:
+      - platform: state
+        entity_id: sensor.prepaid_balance_current
+    condition:
+      # Fire only when the balance goes above the threshold.
+      - condition: template
+        value_template: >-
+          {% set threshold = states('input_number.prepaid_low_balance_threshold') | float(0) %}
+          {{ trigger.to_state.state | float(0) > threshold }}
+    action:
+      - service: persistent_notification.dismiss
+        data:
+          notification_id: "low_prepaid_balance_alert"
+
+# This section tells Home Assistant where to find the dashboard file. It is correct.
+lovelace:
+  mode: yaml
+  dashboards:
+    prepaid-meter:
+      mode: yaml
+      title: Prepaid Meter
+      require_admin: false
+      show_in_sidebar: true
+      filename: packages/prepaid_dashboard.yaml
