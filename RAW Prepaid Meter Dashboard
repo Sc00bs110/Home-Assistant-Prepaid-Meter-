@@ -2,37 +2,32 @@ title: Prepaid Meter
 views:
   - title: Prepaid Meter
     path: prepaid-meter
-    icon: mdi:cash
     cards:
       - type: entities
-        title: Recharge
-        show_header_toggle: false
+        title: "Prepaid Balance & Settings"
         entities:
           - entity: input_number.prepaid_balance
-            name: Set Prepaid Balance (kWh)
-          - entity: input_button.recharge_now
-            name: Recharge Now
-          - entity: input_datetime.last_recharge_time
-            name: Last Recharge Time
+            name: "Set New Prepaid Balance (kWh)"
+          - entity: input_datetime.prepaid_last_recharge # Now correctly displays the timestamp
+            name: "Last Recharge Time"
+          - entity: input_number.prepaid_low_balance_threshold
+            name: "Low Balance Alert Threshold (kWh)"
+      - type: grid
+        columns: 2
+        cards:
+          - type: sensor
+            entity: sensor.prepaid_balance_current
+            name: Current Balance
+            graph: line
+          - type: sensor
+            entity: sensor.prepaid_energy_used_since_recharge
+            name: Energy Used Since Recharge
+            graph: line
       - type: entities
-        title: Status
-        show_header_toggle: false
+        title: "Reference Data"
         entities:
-          - entity: sensor.energy_used_since_recharge
-            name: Energy Used Since Recharge (kWh)
-          - entity: sensor.current_balance
-            name: Current Balance (kWh)
-          - entity: input_number.low_balance_threshold
-            name: Low Balance Alert Threshold (kWh)
-      - type: gauge
-        entity: sensor.current_balance
-        name: Remaining kWh
-        min: 0
-        max: 200
-      - type: history-graph
-        title: Balance & Usage (72h)
-        hours_to_show: 72
-        refresh_interval: 60
-        entities:
-          - sensor.current_balance
-          - sensor.energy_used_since_recharge
+           # This is now the new read-only sensor
+          - entity: sensor.prepaid_grid_import_reference_display
+            name: "Grid Import at Recharge (kWh)"
+          - entity: sensor.inverter_total_grid_import_kwh
+            name: "Live Total Grid Import (kWh)"
