@@ -1,43 +1,38 @@
 title: Prepaid Meter
 views:
-  - title: Overview
+  - title: Prepaid Meter
     path: prepaid-meter
-    icon: mdi:gauge
+    icon: mdi:cash
     cards:
       - type: entities
-        title: Prepaid Meter Controls
+        title: Recharge
+        show_header_toggle: false
         entities:
           - entity: input_number.prepaid_balance
             name: Set Prepaid Balance (kWh)
-          - entity: input_number.low_balance_threshold
-            name: Low Balance Alert Threshold (kWh)
-
+          - entity: input_button.recharge_now
+            name: Recharge Now
+          - entity: input_datetime.last_recharge_time
+            name: Last Recharge Time
       - type: entities
-        title: Prepaid Meter Status
+        title: Status
+        show_header_toggle: false
         entities:
-          - entity: input_number.grid_import_at_recharge
-            name: Grid Import at Recharge (kWh)
           - entity: sensor.energy_used_since_recharge
             name: Energy Used Since Recharge (kWh)
           - entity: sensor.current_balance
             name: Current Balance (kWh)
-          - entity: input_datetime.last_recharge_time
-            name: Last Recharge Time
-
+          - entity: input_number.low_balance_threshold
+            name: Low Balance Alert Threshold (kWh)
+      - type: gauge
+        entity: sensor.current_balance
+        name: Remaining kWh
+        min: 0
+        max: 200
       - type: history-graph
-        title: Balance & Usage Over Time
+        title: Balance & Usage (72h)
+        hours_to_show: 72
+        refresh_interval: 60
         entities:
           - sensor.current_balance
           - sensor.energy_used_since_recharge
-        hours_to_show: 72
-        refresh_interval: 60
-
-      - type: gauge
-        entity: sensor.current_balance
-        min: 0
-        max: >
-          {{ states('input_number.prepaid_balance') | float(0) }}
-        severity:
-          green: 50
-          yellow: 20
-          red: 5
