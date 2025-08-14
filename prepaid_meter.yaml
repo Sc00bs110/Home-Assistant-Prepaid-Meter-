@@ -138,14 +138,3 @@ automation:
       - service: persistent_notification.dismiss
         data:
           notification_id: "low_prepaid_balance_alert"
-
-# This section tells Home Assistant where to find the dashboard file. It is correct.
-lovelace:
-  mode: yaml
-  dashboards:
-    prepaid-meter:
-      mode: yaml
-      title: Prepaid Meter
-      require_admin: false
-      show_in_sidebar: true
-      filename: packages/prepaid_dashboard.yaml
